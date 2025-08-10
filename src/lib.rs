@@ -15,17 +15,22 @@ impl PartialEq for Ratio {
 
 impl Eq for Ratio {}
 
+/// Order is counter-clockwise around the circle
 impl Ord for Ratio {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.eq(other) {
             return Ordering::Equal;
-        } else if self.0 == 0 && other.0 * other.1 >= 0 {
+        } else if self.is_inf() && other.is_non_negative() {
             return Ordering::Greater;
-        } else if self.0 == 0 && other.0 * other.1 < 0 {
+        } else if self.is_inf() && other.is_negative() {
             return Ordering::Less;
-        } else if other.0 == 0 && self.0 * self.1 >= 0 {
+        } else if other.is_inf() && self.is_non_negative() {
             return Ordering::Less;
-        } else if other.0 == 0 && self.0 * self.1 < 0 {
+        } else if other.is_inf() && self.is_negative() {
+            return Ordering::Greater;
+        } else if self.is_non_negative() && other.is_negative() {
+            return Ordering::Less;
+        } else if other.is_non_negative() && self.is_negative() {
             return Ordering::Greater;
         } else {
             let q1 = self.1 as f64 / self.0 as f64;
@@ -47,12 +52,28 @@ impl Ratio {
         Self(self.0, -self.1)
     }
 
+    pub fn is_non_negative(&self) -> bool {
+        self.0 > 0 && self.1 >= 0 || self.0 < 0 && self.1 <= 0
+    }
+
+    pub fn is_negative(&self) -> bool {
+        !self.is_non_negative()
+    }
+
     pub fn zero() -> Self {
         Self(1, 0)
     }
 
     pub fn is_zero(&self) -> bool {
         self.eq(&Self::zero())
+    }
+
+    pub fn inf() -> Self {
+        Self(0, 1)
+    }
+
+    pub fn is_inf(&self) -> bool {
+        self.eq(&Self::inf())
     }
 
     pub fn circular_mul(&self, other: &Self) -> Self {
@@ -109,11 +130,12 @@ impl Ratio {
         let mut c = other.clone();
         let mut rem = self.circular_rem(&c);
         let mut n: u32 = 1;
-        let o = Ratio(1, 0);
+        let o = Ratio::zero();
         while !(o <= rem && rem < *other) {
             c = c.circular_mul(&other);
             c.reduce();
             rem = self.circular_rem(&c);
+            rem.reduce();
             n += 1;
         }
 
@@ -156,6 +178,7 @@ mod tests {
         let r3 = Ratio(3, 10);
         let r4 = Ratio(6, 20);
         let r5 = Ratio(1, -1);
+        let r6 = Ratio(1, -10);
         assert_eq!(r1.cmp(&r2), Ordering::Greater);
         assert_eq!(r2.cmp(&r3), Ordering::Less);
         assert_eq!(r3.cmp(&r4), Ordering::Equal);
@@ -163,6 +186,10 @@ mod tests {
         assert_eq!(r1.cmp(&r2), Ordering::Greater);
         assert_eq!(r1.cmp(&z), Ordering::Greater);
         assert_eq!(r2.cmp(&z), Ordering::Greater);
+        assert_eq!(r5.cmp(&r2), Ordering::Greater);
+        assert_eq!(r2.cmp(&r5), Ordering::Less);
+        assert_eq!(r5.cmp(&r6), Ordering::Greater);
+        assert_eq!(r6.cmp(&r5), Ordering::Less);
     }
 
     #[test]
@@ -217,6 +244,12 @@ mod tests {
         let r7 = Ratio(1, -1);
         let n7 = r7.circular_div(&r3);
         assert_eq!(n7, 1);
+
+        let n8 = r7.circular_div(&r4);
+        assert_eq!(n8, 3);
+
+        let n9 = r4.circular_div(&r7);
+        assert_eq!(n9, 0);
     }
 
     #[test]
